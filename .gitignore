@@ -1,0 +1,49 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environments
+.venv/
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Project specifics
+pi-backend/meetingpi.db
+pi-backend/meetingpi.db-shm
+pi-backend/meetingpi.db-wal
+pi-backend/.env
+recordings/*.wav
+!recordings/.gitkeep
+
+# Node / Next.js
+crm-frontend/node_modules/
+crm-frontend/.next/
+crm-frontend/.env.local
+crm-frontend/.env.development.local
+crm-frontend/.env.test.local
+crm-frontend/.env.production.local
+crm-frontend/npm-debug.log*
+crm-frontend/yarn-debug.log*
+crm-frontend/yarn-error.log*
+crm-frontend/.pnp
+crm-frontend/.pnp.js
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+.gemini/
