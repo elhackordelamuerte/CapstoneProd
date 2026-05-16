@@ -1,0 +1,17 @@
+[Unit]
+Description=MeetingPi USB-Serial Bridge
+After=meetingpi-api.service
+Requires=meetingpi-api.service
+
+[Service]
+Type=simple
+User=cmoi
+WorkingDirectory=/home/cmoi/meetingpi/pi-backend
+Environment="PATH=/home/cmoi/meetingpi/.venv/bin"
+# Ensure the pyserial library is installed in the virtual environment!
+ExecStart=/home/cmoi/meetingpi/.venv/bin/python3 scripts/serial_bridge.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

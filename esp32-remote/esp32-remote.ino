@@ -45,6 +45,7 @@ void my_touchpad_read(lv_indev_t *indev, lv_indev_data_t *data) {
 
 unsigned long lastPollTime = 0;
 bool is_recording = false;
+bool use_wifi = true;
 
 static lv_color_t buf[320 * 24];
 
@@ -78,24 +79,62 @@ void setup() {
     lv_task_handler();
 
     WiFi.begin(WIFI_SSID, WIFI_PASS);
-    while (WiFi.status() != WL_CONNECTED) {
+    unsigned long startAttemptTime = millis();
+    while (WiFi.status() != WL_CONNECTED && millis() - startAttemptTime < 10000) {
         delay(500);
         Serial.print(".");
     }
-    Serial.println("\nWiFi connected.");
 
-    lv_label_set_text(label_status, "WiFi Connected!");
+    if (WiFi.status() == WL_CONNECTED) {
+        Serial.println("\nWiFi connected.");
+        lv_label_set_text(label_status, "WiFi Connected!");
+        use_wifi = true;
+    } else {
+        Serial.println("\nWiFi Failed. Switching to USB Mode.");
+        lv_label_set_text(label_status, "USB Mode Active");
+        use_wifi = false;
+    }
+    ui_set_mode(use_wifi);
     lv_task_handler();
     delay(1000);
 }
+
+// Forward declaration
+void checkSerialStatus();
 
 void loop() {
     lv_task_handler();
     delay(5);
 
-    if (millis() - lastPollTime > STATUS_POLL_INTERVAL_MS) {
-        lastPollTime = millis();
-        pollServerStatus();
+    if (use_wifi) {
+        if (millis() - lastPollTime > STATUS_POLL_INTERVAL_MS) {
+            lastPollTime = millis();
+            pollServerStatus();
+        }
+    } else {
+        checkSerialStatus();
+    }
+}
+
+void checkSerialStatus() {
+    while (Serial.available() > 0) {
+        String line = Serial.readStringUntil('\n');
+        line.trim();
+        if (line.startsWith("STATUS:")) {
+            if (line.startsWith("STATUS:RECORDING")) {
+                is_recording = true;
+                int elapsed = 0;
+                int lastColonIndex = line.lastIndexOf(':');
+                if (lastColonIndex > 6) { 
+                    String elapsedStr = line.substring(lastColonIndex + 1);
+                    elapsed = elapsedStr.toInt();
+                }
+                ui_update_state(is_recording, elapsed);
+            } else if (line == "STATUS:IDLE") {
+                is_recording = false;
+                ui_update_state(is_recording, 0);
+            }
+        }
     }
 }
 
@@ -130,19 +169,24 @@ void pollServerStatus() {
 }
 
 void btn_toggle_event_cb(lv_event_t *e) {
-    if (WiFi.status() == WL_CONNECTED) {
-        HTTPClient http;
-        String url = String(API_BASE_URL) + "/api/recordings/toggle";
-        http.begin(url);
-        http.addHeader("Content-Type", "application/json");
-        int httpResponseCode = http.POST("{}");
+    if (use_wifi) {
+        if (WiFi.status() == WL_CONNECTED) {
+            HTTPClient http;
+            String url = String(API_BASE_URL) + "/api/recordings/toggle";
+            http.begin(url);
+            http.addHeader("Content-Type", "application/json");
+            int httpResponseCode = http.POST("{}");
 
-        if (httpResponseCode > 0) {
-            Serial.printf("Toggle response: %d\n", httpResponseCode);
-            pollServerStatus();
-        } else {
-            Serial.printf("Error on toggle: %s\n", http.errorToString(httpResponseCode).c_str());
+            if (httpResponseCode > 0) {
+                Serial.printf("Toggle response: %d\n", httpResponseCode);
+                pollServerStatus();
+            } else {
+                Serial.printf("Error on toggle: %s\n", http.errorToString(httpResponseCode).c_str());
+            }
+            http.end();
         }
-        http.end();
+    } else {
+        // Wired mode
+        Serial.println("CMD:TOGGLE");
     }
 }
