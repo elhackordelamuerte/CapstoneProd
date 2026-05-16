@@ -43,6 +43,11 @@ class RecordingStopped(BaseModel):
     duration_s: int
 
 
+class ToggleRecordingResponse(BaseModel):
+    action: str
+    meeting_id: Optional[str] = None
+
+
 class RecordingStatus(BaseModel):
     is_recording: bool
     meeting_id: Optional[str]
@@ -128,6 +133,56 @@ async def stop_recording(
         status="transcribing",
         duration_s=duration_s,
     )
+
+
+@router.post("/toggle", response_model=ToggleRecordingResponse)
+async def toggle_recording(
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db),
+    audio_service: AudioService = Depends(get_audio_service),
+) -> ToggleRecordingResponse:
+    """Toggle recording state: start if idle, stop if recording."""
+    if audio_service.is_recording():
+        result = await audio_service.stop_recording()
+        meeting_id: str = str(result["meeting_id"])
+        duration_s: int = int(result["duration_s"])
+
+        from sqlalchemy import select
+        stmt = select(Meeting).where(Meeting.id == meeting_id)
+        row = await db.execute(stmt)
+        meeting = row.scalar_one_or_none()
+
+        if meeting is not None:
+            meeting.ended_at = datetime.now(tz=timezone.utc)
+            meeting.duration_s = duration_s
+            meeting.status = "transcribing"
+            await db.commit()
+
+        from main import process_meeting  # noqa: PLC0415
+        background_tasks.add_task(process_meeting, meeting_id)
+        
+        return ToggleRecordingResponse(action="stopped", meeting_id=meeting_id)
+    else:
+        meeting_id = str(uuid.uuid4())
+        title = f"Remote Meeting {datetime.now(tz=timezone.utc).strftime('%Y-%m-%d %H:%M')}"
+        audio_path = os.path.join(RECORDINGS_DIR, f"{meeting_id}.wav")
+        now = datetime.now(tz=timezone.utc)
+
+        meeting = Meeting(
+            id=meeting_id,
+            title=title,
+            started_at=now,
+            status="recording",
+            audio_path=audio_path,
+            created_at=now,
+            summary_language="en",
+        )
+        db.add(meeting)
+        await db.commit()
+
+        await audio_service.start_recording(meeting_id=meeting_id, output_path=audio_path)
+        
+        return ToggleRecordingResponse(action="started", meeting_id=meeting_id)
 
 
 @router.get("/status", response_model=RecordingStatus)
