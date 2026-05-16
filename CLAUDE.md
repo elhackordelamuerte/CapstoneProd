@@ -88,7 +88,7 @@ meetingpi/
 bash pi-backend/scripts/setup.sh
 
 # Lancer l'API en dev
-cd pi-backend && uvicorn main:app --reload --host 0.0.0.0 --port 8000
+source .venv/bin/activate && cd pi-backend && uvicorn main:app --reload --host 0.0.0.0 --port 8000
 
 # Lancer en production (systemd)
 sudo systemctl start meetingpi-api
@@ -100,7 +100,7 @@ bash pi-backend/scripts/debug.sh
 bash pi-backend/scripts/benchmark.sh
 
 # Tests unitaires
-cd pi-backend && python -m pytest tests/ -v
+source .venv/bin/activate && cd pi-backend && pytest tests/ -v
 ```
 
 ### Frontend CRM

@@ -27,6 +27,20 @@ sudo apt install -y \
   ffmpeg \
   git gcc g++ make curl bc
 echo "OK"
+# ── 3. Environnement Python ──────────────────────────────────────────────────
+echo "--- [3/8] Création de l'environnement virtuel Python ---"
+if [ ! -d "$PROJECT_ROOT/.venv" ]; then
+  python3 -m venv "$PROJECT_ROOT/.venv"
+  echo "✓ Environnement créé dans $PROJECT_ROOT/.venv"
+else
+  echo "SKIP — Environnement déjà existant"
+fi
+
+echo "Installation des dépendances Python..."
+"$PROJECT_ROOT/.venv/bin/pip" install --upgrade pip
+"$PROJECT_ROOT/.venv/bin/pip" install -r "$PROJECT_ROOT/pi-backend/requirements.txt"
+echo "OK"
+
 
 # ── 4. Compiler Whisper.cpp ────────────────────────────────────────────────────
 echo "--- [4/8] Compilation de whisper.cpp ---"
