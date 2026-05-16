@@ -3,9 +3,9 @@
 import { clsx } from "clsx";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import type { SystemStats } from "@/lib/types";
+import type { SystemStats, BridgeStatusResponse } from "@/lib/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, Cpu, HardDrive, Thermometer, Server, Zap, Brain, WifiOff } from "lucide-react";
+import { Loader2, Cpu, HardDrive, Thermometer, Server, Zap, Brain, WifiOff, Usb } from "lucide-react";
 
 interface SystemStatusProps {
   compact?: boolean;
@@ -100,6 +100,13 @@ export function SystemStatus({ compact = false }: SystemStatusProps) {
   const { data, isError } = useQuery<SystemStats>({
     queryKey: ["system-stats"],
     queryFn: () => api.getStats(),
+    refetchInterval: 5000,
+    retry: 1,
+  });
+
+  const { data: bridgeData } = useQuery<BridgeStatusResponse>({
+    queryKey: ["bridge-status"],
+    queryFn: () => api.getBridgeStatus(),
     refetchInterval: 5000,
     retry: 1,
   });
@@ -231,6 +238,7 @@ export function SystemStatus({ compact = false }: SystemStatusProps) {
           <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/40 px-0.5">AI Services</p>
           <ServicePill label="Whisper" icon={<Cpu className="h-3.5 w-3.5" aria-hidden="true" />} available={data.whisper_available} />
           <ServicePill label="Ollama LLM" icon={<Brain className="h-3.5 w-3.5" aria-hidden="true" />} available={data.ollama_available} />
+          <ServicePill label="ESP32 Remote (USB)" icon={<Usb className="h-3.5 w-3.5" aria-hidden="true" />} available={bridgeData?.active ?? false} />
         </div>
       </CardContent>
     </Card>

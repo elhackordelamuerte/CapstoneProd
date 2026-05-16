@@ -79,3 +79,18 @@ export interface SystemModels {
   ollama_model: string;
   ollama_models_available: string[];
 }
+
+export interface USBDevice {
+  device: string;
+  description: string;
+}
+
+export interface BridgeStatusResponse {
+  active: boolean;
+  configured_port: string | null;
+}
+
+export interface BridgeConfigResponse {
+  status: string;
+  message?: string;
+}

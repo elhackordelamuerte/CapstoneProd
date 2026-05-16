@@ -11,6 +11,7 @@ import time
 import threading
 import requests
 import serial
+import json
 from serial.tools import list_ports
 
 API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000/api/recordings")
@@ -52,7 +53,17 @@ def status_polling_thread(ser):
         time.sleep(POLL_INTERVAL)
 
 def main():
-    port_name = os.getenv("SERIAL_PORT") or find_esp32_port()
+    config_port = None
+    config_path = os.path.join(os.path.dirname(__file__), "..", "bridge_config.json")
+    if os.path.exists(config_path):
+        try:
+            with open(config_path, "r") as f:
+                cfg = json.load(f)
+                config_port = cfg.get("port")
+        except Exception:
+            pass
+
+    port_name = config_port or os.getenv("SERIAL_PORT") or find_esp32_port()
     if not port_name:
         print("Error: Could not automatically find ESP32 Serial port.", file=sys.stderr)
         sys.exit(1)

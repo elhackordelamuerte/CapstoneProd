@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { Check, X, Loader2, Server, Brain, Mic, HardDrive, Settings, Save } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Check, X, Loader2, Server, Brain, Mic, HardDrive, Settings, Save, Usb, RefreshCw } from "lucide-react";
 import { api } from "@/lib/api";
-import type { SystemHealth, SystemModels } from "@/lib/types";
+import type { SystemHealth, SystemModels, USBDevice, BridgeStatusResponse } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { toast } from "sonner";
@@ -22,6 +22,7 @@ import { Separator } from "@/components/ui/separator";
 const DEFAULT_API_URL = process.env.NEXT_PUBLIC_PI_API_URL ?? "http://raspberrypi.local:8000";
 
 export default function SettingsPage() {
+  const queryClient = useQueryClient();
   const [apiUrl, setApiUrl] = useState(DEFAULT_API_URL);
   const [ollamaModel, setOllamaModel] = useState("llama3:8b");
   // ── Default AI output language is English ─────────────────────────────────
@@ -46,6 +47,36 @@ export default function SettingsPage() {
     queryKey: ["system-models"],
     queryFn: () => api.getModels(),
     retry: 1,
+  });
+
+  const { data: usbDevices, refetch: refetchUsb } = useQuery<USBDevice[]>({
+    queryKey: ["usb-devices"],
+    queryFn: () => api.getUsbDevices(),
+    retry: 1,
+  });
+
+  const { data: bridgeStatus } = useQuery<BridgeStatusResponse>({
+    queryKey: ["bridge-status"],
+    queryFn: () => api.getBridgeStatus(),
+    refetchInterval: 5000,
+    retry: 1,
+  });
+
+  const [selectedPort, setSelectedPort] = useState<string>("");
+
+  useEffect(() => {
+    if (bridgeStatus?.configured_port && !selectedPort) {
+      setSelectedPort(bridgeStatus.configured_port);
+    }
+  }, [bridgeStatus?.configured_port, selectedPort]);
+
+  const configBridgeMutation = useMutation({
+    mutationFn: (port: string) => api.configBridge(port),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["bridge-status"] });
+      toast.success("Remote port applied and service restarted.");
+    },
+    onError: (err: Error) => toast.error(err.message),
   });
 
   const handleTestConnection = async () => {
@@ -273,6 +304,86 @@ export default function SettingsPage() {
               <p className="mt-1.5 text-xs text-muted-foreground/50">
                 ALSA identifier for the microphone (e.g. <code className="font-mono">plughw:1,0</code>).
               </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ── Remote Control (USB) ────────────────────────────────────────── */}
+      <Card className="glass-panel overflow-hidden">
+        <CardHeader className="border-b border-white/[0.06] bg-white/[0.02] py-4">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg border border-blue-500/20 bg-blue-500/10">
+              <Usb className="h-3.5 w-3.5 text-blue-400" aria-hidden="true" />
+            </div>
+            <div>
+              <CardTitle className="text-sm font-semibold text-foreground/90">ESP32 Remote Control</CardTitle>
+              <CardDescription className="text-xs">USB serial configuration for physical remote</CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="pt-5">
+          <div className="flex flex-col gap-4">
+            <div className="flex items-center justify-between">
+              <label
+                htmlFor="usb-port"
+                className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground/60"
+              >
+                USB Serial Port
+              </label>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 px-2 text-xs text-muted-foreground"
+                onClick={() => void refetchUsb()}
+              >
+                <RefreshCw className="h-3 w-3 mr-1" />
+                Refresh Ports
+              </Button>
+            </div>
+            
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2.5">
+              <Select value={selectedPort} onValueChange={setSelectedPort}>
+                <SelectTrigger id="usb-port" className="flex-1 border-white/[0.08] bg-black/20 font-mono text-sm">
+                  <SelectValue placeholder="Auto-detect or select port" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="auto">Auto-detect</SelectItem>
+                  {usbDevices?.map((device) => (
+                    <SelectItem key={device.device} value={device.device} className="font-mono text-sm">
+                      {device.device} <span className="text-muted-foreground/50 ml-2">({device.description})</span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-9 gap-2 border-white/[0.08] bg-white/[0.03] hover:bg-white/[0.07] whitespace-nowrap"
+                onClick={() => configBridgeMutation.mutate(selectedPort === "auto" ? "" : selectedPort)}
+                disabled={configBridgeMutation.isPending}
+              >
+                {configBridgeMutation.isPending ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : null}
+                Apply & Restart
+              </Button>
+            </div>
+
+            <div className="mt-2 text-sm flex items-center gap-2">
+              <span className="text-muted-foreground">Bridge Service Status:</span>
+              {bridgeStatus?.active ? (
+                <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-bold uppercase tracking-wider bg-emerald-500/15 text-emerald-400">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  Active
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-bold uppercase tracking-wider bg-red-500/15 text-red-400">
+                  <span className="h-1.5 w-1.5 rounded-full bg-red-400" />
+                  Inactive
+                </span>
+              )}
             </div>
           </div>
         </CardContent>

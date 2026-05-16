@@ -70,6 +70,13 @@ bash pi-backend/scripts/benchmark.sh
 
 ---
 
+## Remote Control (ESP32)
+
+MeetingPi includes support for a physical remote control based on the ESP32-2432S028R. 
+See the [Setup Guide (French)](./SETUP_REMOTE_FR.md) for installation instructions.
+
+---
+
 ## Structure
 
 Voir [ARCHITECTURE.md](./ARCHITECTURE.md) pour le détail complet.

@@ -58,6 +58,20 @@ class ModelsResponse(BaseModel):
     ollama_models_available: list[str]
 
 
+class USBDevice(BaseModel):
+    device: str
+    description: str
+
+
+class BridgeStatusResponse(BaseModel):
+    active: bool
+    configured_port: Optional[str]
+
+
+class BridgeConfigRequest(BaseModel):
+    port: str
+
+
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 
@@ -152,3 +166,52 @@ async def models() -> ModelsResponse:
         ollama_model=OLLAMA_MODEL,
         ollama_models_available=available,
     )
+
+
+@router.get("/usb-devices", response_model=list[USBDevice])
+async def list_usb_devices() -> list[USBDevice]:
+    """Return a list of available serial/USB devices."""
+    import serial.tools.list_ports  # noqa: PLC0415
+    ports = serial.tools.list_ports.comports()
+    return [USBDevice(device=p.device, description=p.description) for p in ports]
+
+
+@router.get("/bridge-status", response_model=BridgeStatusResponse)
+async def bridge_status() -> BridgeStatusResponse:
+    """Return the status of the USB-Serial bridge service."""
+    import subprocess  # noqa: PLC0415
+    import json  # noqa: PLC0415
+    
+    active = False
+    try:
+        res = subprocess.run(["systemctl", "is-active", "meetingpi-bridge"], capture_output=True, text=True, check=False)
+        active = (res.stdout.strip() == "active")
+    except Exception:
+        pass
+        
+    configured_port = None
+    config_path = Path("/home/cmoi/meetingpi/pi-backend/bridge_config.json")
+    if config_path.exists():
+        try:
+            cfg = json.loads(config_path.read_text())
+            configured_port = cfg.get("port")
+        except Exception:
+            pass
+
+    return BridgeStatusResponse(active=active, configured_port=configured_port)
+
+
+@router.post("/bridge-config")
+async def config_bridge(req: BridgeConfigRequest) -> dict[str, str]:
+    """Save the selected port and restart the bridge service."""
+    import subprocess  # noqa: PLC0415
+    import json  # noqa: PLC0415
+    
+    config_path = Path("/home/cmoi/meetingpi/pi-backend/bridge_config.json")
+    try:
+        config_path.write_text(json.dumps({"port": req.port}))
+        subprocess.run(["sudo", "systemctl", "restart", "meetingpi-bridge"], check=False)
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+        
+    return {"status": "ok"}

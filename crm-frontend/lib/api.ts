@@ -7,6 +7,9 @@ import type {
   SystemHealth,
   SystemModels,
   SystemStats,
+  USBDevice,
+  BridgeStatusResponse,
+  BridgeConfigResponse,
 } from "./types";
 
 function getBaseUrl(): string {
@@ -105,4 +108,13 @@ export const api = {
 
   getModels: (): Promise<SystemModels> =>
     GET<SystemModels>("/api/system/models"),
+
+  getUsbDevices: (): Promise<USBDevice[]> =>
+    GET<USBDevice[]>("/api/system/usb-devices"),
+
+  getBridgeStatus: (): Promise<BridgeStatusResponse> =>
+    GET<BridgeStatusResponse>("/api/system/bridge-status"),
+
+  configBridge: (port: string): Promise<BridgeConfigResponse> =>
+    POST<BridgeConfigResponse>("/api/system/bridge-config", { port }),
 };
